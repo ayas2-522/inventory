@@ -882,6 +882,33 @@
     }
 
     renderAll();
+    <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "inventory-83fd7.firebaseapp.com",
+  databaseURL: "https://inventory-83fd7-default-rtdb.firebaseio.com",
+  projectId: "inventory-83fd7",
+  storageBucket: "inventory-83fd7.firebasestorage.app",
+  messagingSenderId: "955027014620",
+  appId: "1:955027014620:web:94c6309bdce6b15db58519"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+window.saveFirebaseData = function(data){
+  set(ref(db, 'inventoryData'), data);
+}
+
+window.loadFirebaseData = function(callback){
+  onValue(ref(db, 'inventoryData'), (snapshot) => {
+    callback(snapshot.val());
+  });
+}
+</script>
   </script>
 </body>
 </html>
