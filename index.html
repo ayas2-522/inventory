@@ -437,7 +437,8 @@
       messagingSenderId: "955027014620",
       appId: "1:955027014620:web:94c6309bdce6b15db58519"
     };
-
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
     const FIREBASE_DATA_PATH = 'inventoryData';
     let data = loadData();
     let firebaseRef = null;
