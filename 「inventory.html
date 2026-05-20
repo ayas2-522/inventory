@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>在庫・古物商・資金管理ツール</title>
+  <style>
+    :root {
+      --bg: #f7f3ee;
+      --card: #ffffff;
+      --ink: #2f2a26;
+      --muted: #756b62;
+      --line: #e4d9cf;
+      --accent: #b8875b;
+      --accent-dark: #8c623e;
+      --danger: #b94a48;
+      --ok: #4f8a5b;
+      --shadow: 0 8px 24px rgba(80, 55, 35, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    header {
+      padding: 24px 20px 14px;
+      background: linear-gradient(135deg, #fff8ef, #f0dfcf);
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    p { margin: 0; color: var(--muted); }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 18px; }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .tab-btn, button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: var(--card);
+      color: var(--ink);
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      font-weight: 600;
+    }
+    .tab-btn.active, button.primary { background: var(--accent); color: white; }
+    button.danger { background: var(--danger); color: white; }
+    button.small { padding: 6px 10px; font-size: 12px; }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    .card h3 { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
+    .big { font-size: 24px; font-weight: 800; }
+    .ok { color: var(--ok); }
+    .danger-text { color: var(--danger); }
+
+    form {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 14px;
+      background: #fffdfb;
+    }
+    textarea { min-height: 42px; resize: vertical; }
+    .wide { grid-column: span 2; }
+    .full { grid-column: 1 / -1; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+    .toolbar input, .toolbar select { max-width: 220px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      font-size: 13px;
+      vertical-align: top;
+    }
+    th { background: #f1e5da; font-weight: 800; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    .thumb { width: 54px; height: 54px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: #eee; }
+    .note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      form { grid-template-columns: repeat(2, 1fr); }
+      .wide, .full { grid-column: 1 / -1; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+
+    @media (max-width: 520px) {
+      .grid { grid-template-columns: 1fr; }
+      form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>在庫・古物商・資金管理ツール</h1>
+    <p>仕入れ → 在庫 → 売上 → 利益 → 使える資金まで一括管理</p>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('dashboard')">ダッシュボード</button>
+      <button class="tab-btn" onclick="showTab('inventory')">在庫登録</button>
+      <button class="tab-btn" onclick="showTab('funds')">資金管理</button>
+      <button class="tab-btn" onclick="showTab('pricing')">価格計算</button>
+      <button class="tab-btn" onclick="showTab('monthly')">月別レポート</button>
+      <button class="tab-btn" onclick="showTab('settings')">保存・出力</button>
+    </div>
+
+    <section id="dashboard" class="section active">
+      <div class="grid">
+        <div class="card"><h3>現在在庫数</h3><div class="big" id="stockCount">0</div></div>
+        <div class="card"><h3>在庫仕入総額</h3><div class="big" id="stockCost">¥0</div></div>
+        <div class="card"><h3>累計売上</h3><div class="big" id="totalSales">¥0</div></div>
+        <div class="card"><h3>累計利益</h3><div class="big ok" id="totalProfit">¥0</div></div>
+        <div class="card"><h3>手元資金</h3><div class="big" id="cashBalance">¥0</div></div>
+        <div class="card"><h3>仕入れに回せる目安</h3><div class="big" id="buyingPower">¥0</div></div>
+        <div class="card"><h3>売却済み数</h3><div class="big" id="soldCount">0</div></div>
+        <div class="card"><h3>平均利益率</h3><div class="big" id="avgMargin">0%</div></div>
+      </div>
+      <p class="note">※ 手元資金は「資金管理」に入力した入出金と、売却済み商品の利益から計算します。</p>
+    </section>
+
+    <section id="inventory" class="section">
+      <form id="itemForm">
+        <input type="hidden" id="editId" />
+        <div>
+          <label>商品写真</label>
+          <input type="file" id="photo" accept="image/*" />
+        </div>
+        <div>
+          <label>SKU / 管理番号</label>
+          <input id="sku" placeholder="例：W-2026-001" />
+        </div>
+        <div>
+          <label>商品名</label>
+          <input id="name" required placeholder="例：SEIKO Exceline" />
+        </div>
+        <div>
+          <label>カテゴリ</label>
+          <select id="category">
+            <option>腕時計</option>
+            <option>バッグ</option>
+            <option>アクセサリー</option>
+            <option>その他</option>
+          </select>
+        </div>
+        <div>
+          <label>仕入日</label>
+          <input type="date" id="purchaseDate" />
+        </div>
+        <div>
+          <label>仕入先</label>
+          <input id="supplier" placeholder="例：古物市場 / ヤフオク" />
+        </div>
+        <div>
+          <label>相手方情報</label>
+          <input id="sellerInfo" placeholder="古物台帳用：氏名・住所など" />
+        </div>
+        <div>
+          <label>本人確認</label>
+          <select id="idCheck">
+            <option>未確認</option>
+            <option>確認済み</option>
+            <option>市場仕入れ</option>
+            <option>不要/対象外</option>
+          </select>
+        </div>
+        <div>
+          <label>仕入価格</label>
+          <input type="number" id="purchasePrice" value="0" />
+        </div>
+        <div>
+          <label>修理・電池・部品代</label>
+          <input type="number" id="repairCost" value="0" />
+        </div>
+        <div>
+          <label>送料など仕入付随費</label>
+          <input type="number" id="purchaseExtra" value="0" />
+        </div>
+        <div>
+          <label>保管場所</label>
+          <input id="location" placeholder="例：時計ケースA" />
+        </div>
+        <div>
+          <label>販売先</label>
+          <select id="platform">
+            <option>未定</option>
+            <option>eBay</option>
+            <option>Etsy</option>
+            <option>メルカリ</option>
+            <option>その他</option>
+          </select>
+        </div>
+        <div>
+          <label>販売日</label>
+          <input type="date" id="soldDate" />
+        </div>
+        <div>
+          <label>売上金額</label>
+          <input type="number" id="salePrice" value="0" />
+        </div>
+        <div>
+          <label>販売手数料</label>
+          <input type="number" id="sellingFee" value="0" />
+        </div>
+        <div>
+          <label>発送送料</label>
+          <input type="number" id="shippingCost" value="0" />
+        </div>
+        <div>
+          <label>DPP / 関税負担</label>
+          <input type="number" id="dppCost" value="0" />
+        </div>
+        <div>
+          <label>その他コスト</label>
+          <input type="number" id="otherCost" value="0" />
+        </div>
+        <div>
+          <label>ステータス</label>
+          <select id="status">
+            <option>在庫中</option>
+            <option>出品中</option>
+            <option>売却済み</option>
+            <option>返品</option>
+            <option>廃棄/紛失</option>
+          </select>
+        </div>
+        <div class="wide">
+          <label>状態メモ</label>
+          <textarea id="condition" placeholder="傷、動作、防水未確認など"></textarea>
+        </div>
+        <div class="wide">
+          <label>備考</label>
+          <textarea id="memo" placeholder="出品タイトル、注意点、次にやることなど"></textarea>
+        </div>
+        <div class="full">
+          <button class="primary" type="submit">登録 / 更新する</button>
+          <button type="button" onclick="resetForm()">入力をクリア</button>
+        </div>
+      </form>
+
+      <div class="toolbar">
+        <input id="search" placeholder="商品名・SKU・仕入先で検索" oninput="renderItems()" />
+        <select id="statusFilter" onchange="renderItems()">
+          <option value="">全ステータス</option>
+          <option>在庫中</option>
+          <option>出品中</option>
+          <option>売却済み</option>
+          <option>返品</option>
+          <option>廃棄/紛失</option>
+        </select>
+      </div>
+      <div id="itemsTable"></div>
+    </section>
+
+    <section id="funds" class="section">
+      <form id="fundForm">
+        <input type="hidden" id="fundEditId" />
+        <div>
+          <label>日付</label>
+          <input type="date" id="fundDate" required />
+        </div>
+        <div>
+          <label>区分</label>
+          <select id="fundType">
+            <option value="in">入金</option>
+            <option value="out">出金</option>
+          </select>
+        </div>
+        <div>
+          <label>項目</label>
+          <input id="fundTitle" required placeholder="例：事業資金追加 / 梱包材" />
+        </div>
+        <div>
+          <label>金額</label>
+          <input type="number" id="fundAmount" required value="0" />
+        </div>
+        <div class="wide">
+          <label>メモ</label>
+          <input id="fundMemo" placeholder="任意" />
+        </div>
+        <div class="full">
+          <button class="primary" type="submit">資金記録を追加</button>
+        </div>
+      </form>
+      <div id="fundTable"></div>
+    </section>
+
+    <section id="pricing" class="section">
+      <form id="priceForm">
+        <div>
+          <label>販売先</label>
+          <select id="pricePlatform" onchange="applyPlatformPreset()">
+            <option value="ebay">eBay（手数料20%）</option>
+            <option value="etsy_ads">Etsy 外部広告あり（目安28%）</option>
+            <option value="etsy_no_ads">Etsy 外部広告なし（目安13%）</option>
+            <option value="custom">カスタム</option>
+          </select>
+        </div>
+        <div>
+          <label>為替レート</label>
+          <input type="number" id="priceRate" value="158" step="0.01" />
+        </div>
+        <div>
+          <label>仕入れ・原価</label>
+          <input type="number" id="priceCost" value="0" />
+        </div>
+        <div>
+          <label>送料</label>
+          <input type="number" id="priceShipping" value="5300" />
+        </div>
+        <div>
+          <label>DPP / 関税負担</label>
+          <input type="number" id="priceDpp" value="3800" />
+        </div>
+        <div>
+          <label>その他コスト</label>
+          <input type="number" id="priceOther" value="0" />
+        </div>
+        <div>
+          <label>ほしい利益額</label>
+          <input type="number" id="targetProfit" value="5000" />
+        </div>
+        <div>
+          <label>手数料率</label>
+          <input type="number" id="feeRate" value="20" step="0.1" />
+        </div>
+        <div>
+          <label>固定手数料（円）</label>
+          <input type="number" id="fixedFeeYen" value="0" />
+        </div>
+        <div>
+          <label>固定手数料（ドル）</label>
+          <input type="number" id="fixedFeeUsd" value="0" step="0.01" />
+        </div>
+        <div class="full">
+          <button class="primary" type="button" onclick="calculatePrice()">販売価格を計算する</button>
+          <button type="button" onclick="copyPriceToClipboard()">結果をコピー</button>
+        </div>
+      </form>
+
+      <div class="grid">
+        <div class="card"><h3>必要な販売価格</h3><div class="big" id="neededPriceYen">¥0</div></div>
+        <div class="card"><h3>ドル表示</h3><div class="big" id="neededPriceUsd">$0.00</div></div>
+        <div class="card"><h3>総コスト</h3><div class="big" id="pricingTotalCost">¥0</div></div>
+        <div class="card"><h3>想定利益</h3><div class="big ok" id="pricingProfit">¥0</div></div>
+      </div>
+      <div class="card">
+        <h2>計算メモ</h2>
+        <p class="note" id="pricingMemo">数値を入れて「販売価格を計算する」を押してください。</p>
+        <p class="note">※ eBay/Etsyの手数料は実際のカテゴリ・広告・購入国・為替・税金で変わるので、ここでは余裕を見た目安として使う想定です。</p>
+      </div>
+    </section>
+
+    <section id="monthly" class="section">
+      <div class="card">
+        <h2>月別収支レポート</h2>
+        <div class="toolbar">
+          <select id="monthlyYear" onchange="renderMonthlyReport()"></select>
+          <button class="primary" onclick="exportMonthlyCSV()">月別CSV出力</button>
+        </div>
+        <div id="monthlySummary"></div>
+      </div>
+    </section>
+
+    <section id="settings" class="section">
+      <div class="card">
+        <h2>保存・バックアップ</h2>
+        <p class="note">データはこのブラウザ内に自動保存されます。パソコン変更・ブラウザ初期化に備えてCSV出力をおすすめします。</p>
+        <div class="toolbar">
+          <button class="primary" onclick="exportItemsCSV()">在庫CSVを出力</button>
+          <button class="primary" onclick="exportFundsCSV()">資金CSVを出力</button>
+          <button onclick="downloadBackup()">全データJSONバックアップ</button>
+          <label style="display:inline-block; margin:0;">
+            <input type="file" id="restoreFile" accept="application/json" onchange="restoreBackup(event)" style="display:none" />
+            <button onclick="document.getElementById('restoreFile').click()">JSONから復元</button>
+          </label>
+          <button class="danger" onclick="clearAllData()">全データ削除</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'antique_inventory_funds_v1';
+    let data = loadData();
+
+    function loadData() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : { items: [], funds: [] };
+    }
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      renderAll();
+    }
+
+    function yen(n) {
+      return '¥' + Number(n || 0).toLocaleString('ja-JP');
+    }
+
+    function num(id) {
+      return Number(document.getElementById(id).value || 0);
+    }
+
+    function val(id) {
+      return document.getElementById(id).value.trim();
+    }
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    function showTab(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      event.target.classList.add('active');
+      renderAll();
+    }
+
+    function totalCost(item) {
+      return Number(item.purchasePrice || 0) + Number(item.repairCost || 0) + Number(item.purchaseExtra || 0);
+    }
+
+    function sellingCost(item) {
+      return Number(item.sellingFee || 0) + Number(item.shippingCost || 0) + Number(item.dppCost || 0) + Number(item.otherCost || 0);
+    }
+
+    function profit(item) {
+      if (item.status !== '売却済み') return 0;
+      return Number(item.salePrice || 0) - totalCost(item) - sellingCost(item);
+    }
+
+    function margin(item) {
+      if (!Number(item.salePrice)) return 0;
+      return profit(item) / Number(item.salePrice) * 100;
+    }
+
+    document.getElementById('itemForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const photoFile = document.getElementById('photo').files[0];
+      const editId = val('editId');
+      const existing = data.items.find(i => i.id === editId);
+      let photoData = existing?.photoData || '';
+
+      if (photoFile) {
+        photoData = await fileToBase64(photoFile);
+      }
+
+      const item = {
+        id: editId || uid(),
+        photoData,
+        sku: val('sku'),
+        name: val('name'),
+        category: val('category'),
+        purchaseDate: val('purchaseDate'),
+        supplier: val('supplier'),
+        sellerInfo: val('sellerInfo'),
+        idCheck: val('idCheck'),
+        purchasePrice: num('purchasePrice'),
+        repairCost: num('repairCost'),
+        purchaseExtra: num('purchaseExtra'),
+        location: val('location'),
+        platform: val('platform'),
+        soldDate: val('soldDate'),
+        salePrice: num('salePrice'),
+        sellingFee: num('sellingFee'),
+        shippingCost: num('shippingCost'),
+        dppCost: num('dppCost'),
+        otherCost: num('otherCost'),
+        status: val('status'),
+        condition: val('condition'),
+        memo: val('memo'),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (editId) {
+        data.items = data.items.map(i => i.id === editId ? item : i);
+      } else {
+        data.items.push(item);
+      }
+      resetForm();
+      saveData();
+    });
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function resetForm() {
+      document.getElementById('itemForm').reset();
+      document.getElementById('editId').value = '';
+      ['purchasePrice','repairCost','purchaseExtra','salePrice','sellingFee','shippingCost','dppCost','otherCost'].forEach(id => document.getElementById(id).value = 0);
+      document.getElementById('photo').value = '';
+    }
+
+    function editItem(id) {
+      const item = data.items.find(i => i.id === id);
+      if (!item) return;
+      Object.keys(item).forEach(key => {
+        const el = document.getElementById(key);
+        if (el && key !== 'photoData') el.value = item[key];
+      });
+      document.getElementById('editId').value = item.id;
+      window.scrollTo({ top: 100, behavior: 'smooth' });
+    }
+
+    function deleteItem(id) {
+      if (!confirm('この商品を削除しますか？')) return;
+      data.items = data.items.filter(i => i.id !== id);
+      saveData();
+    }
+
+    function renderItems() {
+      const keyword = val('search').toLowerCase();
+      const status = val('statusFilter');
+      const items = data.items.filter(i => {
+        const hit = [i.sku, i.name, i.supplier, i.platform, i.memo].join(' ').toLowerCase().includes(keyword);
+        const statusHit = !status || i.status === status;
+        return hit && statusHit;
+      }).sort((a,b) => (b.purchaseDate || '').localeCompare(a.purchaseDate || ''));
+
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>写真</th><th>SKU</th><th>商品名</th><th>仕入/古物情報</th><th>在庫原価</th><th>販売情報</th><th>利益</th><th>状態</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(i => `
+              <tr>
+                <td>${i.photoData ? `<img class="thumb" src="${i.photoData}">` : '<div class="thumb"></div>'}</td>
+                <td>${escapeHtml(i.sku)}</td>
+                <td><b>${escapeHtml(i.name)}</b><br>${escapeHtml(i.category)}<br><span class="note">${escapeHtml(i.location || '')}</span></td>
+                <td>${escapeHtml(i.purchaseDate || '')}<br>${escapeHtml(i.supplier || '')}<br>本人確認：${escapeHtml(i.idCheck || '')}<br><span class="note">${escapeHtml(i.sellerInfo || '')}</span></td>
+                <td>${yen(totalCost(i))}<br><span class="note">仕入 ${yen(i.purchasePrice)} / 修理 ${yen(i.repairCost)} / 付随 ${yen(i.purchaseExtra)}</span></td>
+                <td>${escapeHtml(i.platform || '')}<br>${escapeHtml(i.soldDate || '')}<br>売上 ${yen(i.salePrice)}<br><span class="note">販売コスト ${yen(sellingCost(i))}</span></td>
+                <td class="${profit(i) < 0 ? 'danger-text' : 'ok'}"><b>${yen(profit(i))}</b><br><span class="note">利益率 ${margin(i).toFixed(1)}%</span></td>
+                <td>${escapeHtml(i.status)}<br><span class="note">${escapeHtml(i.condition || '')}</span></td>
+                <td><button class="small" onclick="editItem('${i.id}')">編集</button><br><br><button class="small danger" onclick="deleteItem('${i.id}')">削除</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+      document.getElementById('itemsTable').innerHTML = html;
+    }
+
+    document.getElementById('fundForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fund = {
+        id: val('fundEditId') || uid(),
+        date: val('fundDate'),
+        type: val('fundType'),
+        title: val('fundTitle'),
+        amount: num('fundAmount'),
+        memo: val('fundMemo')
+      };
+      data.funds.push(fund);
+      document.getElementById('fundForm').reset();
+      document.getElementById('fundAmount').value = 0;
+      saveData();
+    });
+
+    function deleteFund(id) {
+      if (!confirm('この資金記録を削除しますか？')) return;
+      data.funds = data.funds.filter(f => f.id !== id);
+      saveData();
+    }
+
+    function renderFunds() {
+      const rows = data.funds.sort((a,b) => (b.date || '').localeCompare(a.date || '')).map(f => `
+        <tr>
+          <td>${escapeHtml(f.date)}</td>
+          <td>${f.type === 'in' ? '入金' : '出金'}</td>
+          <td>${escapeHtml(f.title)}</td>
+          <td>${yen(f.amount)}</td>
+          <td>${escapeHtml(f.memo || '')}</td>
+          <td><button class="small danger" onclick="deleteFund('${f.id}')">削除</button></td>
+        </tr>
+      `).join('');
+      document.getElementById('fundTable').innerHTML = `
+        <table>
+          <thead><tr><th>日付</th><th>区分</th><th>項目</th><th>金額</th><th>メモ</th><th>操作</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    function renderDashboard() {
+      const stockItems = data.items.filter(i => i.status !== '売却済み' && i.status !== '廃棄/紛失');
+      const soldItems = data.items.filter(i => i.status === '売却済み');
+      const stockCost = stockItems.reduce((s,i) => s + totalCost(i), 0);
+      const totalSales = soldItems.reduce((s,i) => s + Number(i.salePrice || 0), 0);
+      const totalProfit = soldItems.reduce((s,i) => s + profit(i), 0);
+      const fundIn = data.funds.filter(f => f.type === 'in').reduce((s,f) => s + Number(f.amount || 0), 0);
+      const fundOut = data.funds.filter(f => f.type === 'out').reduce((s,f) => s + Number(f.amount || 0), 0);
+      const purchaseSpent = data.items.reduce((s,i) => s + totalCost(i), 0);
+      const cashBalance = fundIn - fundOut - purchaseSpent + totalSales - soldItems.reduce((s,i) => s + sellingCost(i), 0);
+      const buyingPower = Math.max(0, cashBalance);
+      const avgMargin = soldItems.length ? soldItems.reduce((s,i) => s + margin(i), 0) / soldItems.length : 0;
+
+      document.getElementById('stockCount').textContent = stockItems.length;
+      document.getElementById('stockCost').textContent = yen(stockCost);
+      document.getElementById('totalSales').textContent = yen(totalSales);
+      document.getElementById('totalProfit').textContent = yen(totalProfit);
+      document.getElementById('cashBalance').textContent = yen(cashBalance);
+      document.getElementById('cashBalance').className = 'big ' + (cashBalance < 0 ? 'danger-text' : '');
+      document.getElementById('buyingPower').textContent = yen(buyingPower);
+      document.getElementById('soldCount').textContent = soldItems.length;
+      document.getElementById('avgMargin').textContent = avgMargin.toFixed(1) + '%';
+    }
+
+    function applyPlatformPreset() {
+      const platform = val('pricePlatform');
+      if (platform === 'ebay') {
+        document.getElementById('feeRate').value = 20;
+        document.getElementById('fixedFeeYen').value = 0;
+        document.getElementById('fixedFeeUsd').value = 0;
+      }
+      if (platform === 'etsy_ads') {
+        document.getElementById('feeRate').value = 28;
+        document.getElementById('fixedFeeYen').value = 0;
+        document.getElementById('fixedFeeUsd').value = 0.5;
+      }
+      if (platform === 'etsy_no_ads') {
+        document.getElementById('feeRate').value = 13;
+        document.getElementById('fixedFeeYen').value = 0;
+        document.getElementById('fixedFeeUsd').value = 0.5;
+      }
+    }
+
+    function calculatePrice() {
+      const rate = Number(document.getElementById('priceRate').value || 0);
+      const cost = Number(document.getElementById('priceCost').value || 0);
+      const shipping = Number(document.getElementById('priceShipping').value || 0);
+      const dpp = Number(document.getElementById('priceDpp').value || 0);
+      const other = Number(document.getElementById('priceOther').value || 0);
+      const target = Number(document.getElementById('targetProfit').value || 0);
+      const feeRate = Number(document.getElementById('feeRate').value || 0) / 100;
+      const fixedYen = Number(document.getElementById('fixedFeeYen').value || 0);
+      const fixedUsd = Number(document.getElementById('fixedFeeUsd').value || 0);
+      const fixedTotal = fixedYen + fixedUsd * rate;
+      const totalCost = cost + shipping + dpp + other + fixedTotal;
+
+      if (!rate || feeRate >= 1) {
+        alert('為替レートと手数料率を確認してください');
+        return;
+      }
+
+      const neededYen = (totalCost + target) / (1 - feeRate);
+      const neededUsd = neededYen / rate;
+      const roundedUsd = Math.ceil(neededUsd * 100) / 100;
+      const roundedYen = roundedUsd * rate;
+      const actualProfit = roundedYen * (1 - feeRate) - totalCost;
+
+      document.getElementById('neededPriceYen').textContent = yen(Math.round(roundedYen));
+      document.getElementById('neededPriceUsd').textContent = '$' + roundedUsd.toFixed(2);
+      document.getElementById('pricingTotalCost').textContent = yen(Math.round(totalCost));
+      document.getElementById('pricingProfit').textContent = yen(Math.round(actualProfit));
+      document.getElementById('pricingMemo').textContent = `総コスト ${yen(Math.round(totalCost))}、手数料率 ${(feeRate * 100).toFixed(1)}%、目標利益 ${yen(target)} の場合、販売価格は ${yen(Math.round(roundedYen))} / $${roundedUsd.toFixed(2)} が目安です。`;
+    }
+
+    function copyPriceToClipboard() {
+      const text = document.getElementById('pricingMemo').textContent;
+      navigator.clipboard.writeText(text).then(() => alert('コピーしました'));
+    }
+
+    function populateYearSelector() {
+      const years = new Set();
+      data.items.forEach(i => {
+        if (i.purchaseDate) years.add(i.purchaseDate.slice(0,4));
+        if (i.soldDate) years.add(i.soldDate.slice(0,4));
+      });
+      data.funds.forEach(f => {
+        if (f.date) years.add(f.date.slice(0,4));
+      });
+      if (years.size === 0) years.add(String(new Date().getFullYear()));
+
+      const select = document.getElementById('monthlyYear');
+      if (!select) return;
+      const current = select.value;
+      const sortedYears = [...years].sort((a,b) => b.localeCompare(a));
+      select.innerHTML = sortedYears.map(y => `<option value="${y}">${y}年</option>`).join('');
+      if (sortedYears.includes(current)) select.value = current;
+    }
+
+    function renderMonthlyReport() {
+      populateYearSelector();
+      const year = document.getElementById('monthlyYear')?.value || String(new Date().getFullYear());
+      const monthly = Array.from({length:12}, (_,i) => ({
+        month: i + 1,
+        purchase: 0,
+        sales: 0,
+        profit: 0,
+        fundIn: 0,
+        fundOut: 0
+      }));
+
+      data.items.forEach(item => {
+        if (item.purchaseDate && item.purchaseDate.startsWith(year)) {
+          const m = Number(item.purchaseDate.slice(5,7)) - 1;
+          monthly[m].purchase += totalCost(item);
+        }
+        if (item.status === '売却済み' && item.soldDate && item.soldDate.startsWith(year)) {
+          const m = Number(item.soldDate.slice(5,7)) - 1;
+          monthly[m].sales += Number(item.salePrice || 0);
+          monthly[m].profit += profit(item);
+        }
+      });
+
+      data.funds.forEach(f => {
+        if (f.date && f.date.startsWith(year)) {
+          const m = Number(f.date.slice(5,7)) - 1;
+          if (f.type === 'in') monthly[m].fundIn += Number(f.amount || 0);
+          else monthly[m].fundOut += Number(f.amount || 0);
+        }
+      });
+
+      const totalPurchase = monthly.reduce((s,m) => s + m.purchase, 0);
+      const totalSales = monthly.reduce((s,m) => s + m.sales, 0);
+      const totalProfit = monthly.reduce((s,m) => s + m.profit, 0);
+
+      const table = `
+        <div class="grid">
+          <div class="card"><h3>年間仕入額</h3><div class="big">${yen(totalPurchase)}</div></div>
+          <div class="card"><h3>年間売上</h3><div class="big">${yen(totalSales)}</div></div>
+          <div class="card"><h3>年間利益</h3><div class="big ok">${yen(totalProfit)}</div></div>
+          <div class="card"><h3>年間平均利益率</h3><div class="big">${totalSales ? ((totalProfit / totalSales) * 100).toFixed(1) : 0}%</div></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>月</th><th>仕入額</th><th>売上</th><th>利益</th><th>資金追加</th><th>資金支出</th><th>営業CF</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${monthly.map(m => `
+              <tr>
+                <td>${m.month}月</td>
+                <td>${yen(m.purchase)}</td>
+                <td>${yen(m.sales)}</td>
+                <td class="${m.profit < 0 ? 'danger-text' : 'ok'}">${yen(m.profit)}</td>
+                <td>${yen(m.fundIn)}</td>
+                <td>${yen(m.fundOut)}</td>
+                <td class="${(m.sales + m.fundIn - m.purchase - m.fundOut) < 0 ? 'danger-text' : 'ok'}">${yen(m.sales + m.fundIn - m.purchase - m.fundOut)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+      document.getElementById('monthlySummary').innerHTML = table;
+    }
+
+    function exportMonthlyCSV() {
+      const year = document.getElementById('monthlyYear')?.value || String(new Date().getFullYear());
+      const rows = [['月','仕入額','売上','利益','資金追加','資金支出']];
+      for (let month = 1; month <= 12; month++) {
+        const mm = String(month).padStart(2,'0');
+        const purchase = data.items.filter(i => i.purchaseDate?.startsWith(`${year}-${mm}`)).reduce((s,i) => s + totalCost(i), 0);
+        const sold = data.items.filter(i => i.status === '売却済み' && i.soldDate?.startsWith(`${year}-${mm}`));
+        const sales = sold.reduce((s,i) => s + Number(i.salePrice || 0), 0);
+        const profitTotal = sold.reduce((s,i) => s + profit(i), 0);
+        const fundIn = data.funds.filter(f => f.type === 'in' && f.date?.startsWith(`${year}-${mm}`)).reduce((s,f) => s + Number(f.amount || 0), 0);
+        const fundOut = data.funds.filter(f => f.type === 'out' && f.date?.startsWith(`${year}-${mm}`)).reduce((s,f) => s + Number(f.amount || 0), 0);
+        rows.push([`${month}月`, purchase, sales, profitTotal, fundIn, fundOut]);
+      }
+      exportCSV(`月別レポート_${year}.csv`, rows);
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderItems();
+      renderFunds();
+      renderMonthlyReport();
+    }
+
+    function escapeHtml(text) {
+      return String(text || '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    function exportCSV(filename, rows) {
+      const csv = rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const bom = '\uFEFF';
+      const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportItemsCSV() {
+      const header = ['SKU','商品名','カテゴリ','仕入日','仕入先','相手方情報','本人確認','仕入価格','修理代','仕入付随費','在庫原価','保管場所','販売先','販売日','売上','販売手数料','発送送料','DPP','その他コスト','利益','利益率','ステータス','状態メモ','備考'];
+      const rows = data.items.map(i => [i.sku,i.name,i.category,i.purchaseDate,i.supplier,i.sellerInfo,i.idCheck,i.purchasePrice,i.repairCost,i.purchaseExtra,totalCost(i),i.location,i.platform,i.soldDate,i.salePrice,i.sellingFee,i.shippingCost,i.dppCost,i.otherCost,profit(i),margin(i).toFixed(1),i.status,i.condition,i.memo]);
+      exportCSV('在庫_古物商_管理.csv', [header, ...rows]);
+    }
+
+    function exportFundsCSV() {
+      const header = ['日付','区分','項目','金額','メモ'];
+      const rows = data.funds.map(f => [f.date, f.type === 'in' ? '入金' : '出金', f.title, f.amount, f.memo]);
+      exportCSV('資金管理.csv', [header, ...rows]);
+    }
+
+    function downloadBackup() {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '在庫_古物商_資金管理_backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function restoreBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const restored = JSON.parse(reader.result);
+          if (!restored.items || !restored.funds) throw new Error('形式が違います');
+          data = restored;
+          saveData();
+          alert('復元しました');
+        } catch (e) {
+          alert('復元できませんでした。JSONバックアップファイルを選んでください。');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearAllData() {
+      if (!confirm('本当に全データを削除しますか？バックアップしてからがおすすめです。')) return;
+      data = { items: [], funds: [] };
+      saveData();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
