@@ -539,12 +539,19 @@ const database = firebase.database();
     }
 
     function showTab(id) {
-      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById(id).classList.add('active');
-      event.target.classList.add('active');
-      renderAll();
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+
+  const buttons = document.querySelectorAll('.tab-btn');
+  buttons.forEach(button => {
+    if (button.getAttribute('onclick') && button.getAttribute('onclick').includes(id)) {
+      button.classList.add('active');
     }
+  });
+
+  renderAll();
+}
 
     function totalCost(item) {
       return Number(item.purchasePrice || 0) + Number(item.repairCost || 0) + Number(item.purchaseExtra || 0);
