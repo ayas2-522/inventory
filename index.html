@@ -978,37 +978,6 @@ const database = firebase.database();
 
     
     renderAll();
-    <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getDatabase,
-  ref,
-  set,
-  get
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-const firebaseConfig = {
-  apiKey: "ここをFirebaseの値に変更",
-  authDomain: "ここをFirebaseの値に変更",
-  databaseURL: "ここをFirebaseの値に変更",
-  projectId: "ここをFirebaseの値に変更",
-  storageBucket: "ここをFirebaseの値に変更",
-  messagingSenderId: "ここをFirebaseの値に変更",
-  appId: "ここをFirebaseの値に変更"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-window.saveCloudData = async function(data){
-  await set(ref(db, "inventoryData"), data);
-};
-
-window.loadCloudData = async function(){
-  const snapshot = await get(ref(db, "inventoryData"));
-  return snapshot.exists() ? snapshot.val() : null;
-};
-</script>
   </script>
 </body>
 </html>
