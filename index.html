@@ -405,7 +405,7 @@
     <section id="settings" class="section">
       <div class="card">
         <h2>保存・バックアップ</h2>
-        <p class="note">データはこのブラウザ内に自動保存されます。パソコン変更・ブラウザ初期化に備えてCSV出力をおすすめします。</p>
+        <p class="note">データはブラウザ内にも保存され、Firebase設定が正しければクラウドにも自動同期されます。</p>
         <div class="toolbar">
           <button class="primary" onclick="exportItemsCSV()">在庫CSVを出力</button>
           <button class="primary" onclick="exportFundsCSV()">資金CSVを出力</button>
@@ -420,18 +420,105 @@
     </section>
   </main>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
   <script>
     const STORAGE_KEY = 'antique_inventory_funds_v1';
+
+    // Firebase Realtime Database 接続設定
+    // ★ apiKey だけ、Firebaseの画面に表示されたものに置き換えてください。
+    const firebaseConfig = {
+      apiKey: "ここにFirebaseのapiKeyを入れる",
+      authDomain: "inventory-83fd7.firebaseapp.com",
+      databaseURL: "https://inventory-83fd7-default-rtdb.firebaseio.com",
+      projectId: "inventory-83fd7",
+      storageBucket: "inventory-83fd7.firebasestorage.app",
+      messagingSenderId: "955027014620",
+      appId: "1:955027014620:web:94c6309bdce6b15db58519"
+    };
+
+    const FIREBASE_DATA_PATH = 'inventoryData';
     let data = loadData();
+    let firebaseRef = null;
+    let isApplyingRemoteData = false;
+
+    function emptyData() {
+      return { items: [], funds: [] };
+    }
+
+    function hasAnyData(target) {
+      return Boolean(target && (
+        (Array.isArray(target.items) && target.items.length > 0) ||
+        (Array.isArray(target.funds) && target.funds.length > 0)
+      ));
+    }
+
+    function normalizeData(target) {
+      return {
+        items: Array.isArray(target?.items) ? target.items : [],
+        funds: Array.isArray(target?.funds) ? target.funds : []
+      };
+    }
 
     function loadData() {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : { items: [], funds: [] };
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? normalizeData(JSON.parse(saved)) : emptyData();
+      } catch (e) {
+        console.warn('ローカル保存データの読み込みに失敗しました', e);
+        return emptyData();
+      }
+    }
+
+    function saveLocalData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
     function saveData() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      saveLocalData();
+
+      if (firebaseRef && !isApplyingRemoteData) {
+        firebaseRef.set(data).catch(error => {
+          console.error('Firebase保存エラー:', error);
+          alert('クラウド保存に失敗しました。ネット接続やFirebase設定を確認してください。');
+        });
+      }
+
       renderAll();
+    }
+
+    function initFirebaseSync() {
+      if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('ここにFirebase')) {
+        console.warn('Firebase apiKey が未設定です。apiKeyを入れるとクラウド同期が有効になります。');
+        return;
+      }
+
+      try {
+        firebase.initializeApp(firebaseConfig);
+        firebaseRef = firebase.database().ref(FIREBASE_DATA_PATH);
+
+        firebaseRef.on('value', snapshot => {
+          const remoteData = snapshot.val();
+
+          if (remoteData && (Array.isArray(remoteData.items) || Array.isArray(remoteData.funds))) {
+            isApplyingRemoteData = true;
+            data = normalizeData(remoteData);
+            saveLocalData();
+            renderAll();
+            isApplyingRemoteData = false;
+          } else if (!remoteData && hasAnyData(data)) {
+            // 初回だけ、今この端末にあるデータをクラウドへアップロード
+            firebaseRef.set(data).catch(error => console.error('初回クラウド保存エラー:', error));
+          }
+        }, error => {
+          console.error('Firebase読み込みエラー:', error);
+          alert('クラウド同期に接続できませんでした。FirebaseのルールやURLを確認してください。');
+        });
+      } catch (e) {
+        console.error('Firebase初期化エラー:', e);
+        alert('Firebase設定に問題があります。firebaseConfigを確認してください。');
+      }
     }
 
     function yen(n) {
@@ -865,7 +952,7 @@
         try {
           const restored = JSON.parse(reader.result);
           if (!restored.items || !restored.funds) throw new Error('形式が違います');
-          data = restored;
+          data = normalizeData(restored);
           saveData();
           alert('復元しました');
         } catch (e) {
@@ -881,7 +968,39 @@
       saveData();
     }
 
+    initFirebaseSync();
     renderAll();
+    <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getDatabase,
+  ref,
+  set,
+  get
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "ここをFirebaseの値に変更",
+  authDomain: "ここをFirebaseの値に変更",
+  databaseURL: "ここをFirebaseの値に変更",
+  projectId: "ここをFirebaseの値に変更",
+  storageBucket: "ここをFirebaseの値に変更",
+  messagingSenderId: "ここをFirebaseの値に変更",
+  appId: "ここをFirebaseの値に変更"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+window.saveCloudData = async function(data){
+  await set(ref(db, "inventoryData"), data);
+};
+
+window.loadCloudData = async function(){
+  const snapshot = await get(ref(db, "inventoryData"));
+  return snapshot.exists() ? snapshot.val() : null;
+};
+</script>
   </script>
 </body>
 </html>
